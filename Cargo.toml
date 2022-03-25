@@ -1,0 +1,12 @@
+[package]
+name = "tokio-metrics-prometheus"
+authors = ["ben@bsull.io"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+prometheus-client = "0.15.1"
+tokio-metrics = { version = "0.1.0", features = ["rt"] }
+
+[dev-dependencies]
+tokio = { version = "1.15.0", features = ["full", "rt", "time", "macros", "test-util"] }
