@@ -131,6 +131,14 @@ macro_rules! metric_struct {
                 $metric_type
             }
         }
+
+        impl std::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+                f.debug_struct(stringify!($struct_name))
+                    .field("state", &"<monitor>")
+                    .finish()
+            }
+        }
     };
     ( $struct_name:ident, $metric_name:ident, $description:expr, $metric_type:expr$(,)? ) => {
         struct $struct_name(Arc<RwLock<CachedMonitor>>);
@@ -159,6 +167,14 @@ macro_rules! metric_struct {
                 $metric_type
             }
         }
+
+        impl std::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+                f.debug_struct(stringify!($struct_name))
+                    .field("state", &"<monitor>")
+                    .finish()
+            }
+        }
     };
     ( $struct_name:ident, $metric_name:ident, $description:expr, $metric_type:expr, $extract:expr$(,)?) => {
         struct $struct_name(Arc<RwLock<CachedMonitor>>);
@@ -185,6 +201,14 @@ macro_rules! metric_struct {
 
             fn metric_type(&self) -> MetricType {
                 $metric_type
+            }
+        }
+
+        impl std::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+                f.debug_struct(stringify!($struct_name))
+                    .field("state", &"<monitor>")
+                    .finish()
             }
         }
     };
@@ -232,6 +256,14 @@ macro_rules! metric_struct {
 
             fn metric_type(&self) -> MetricType {
                 $metric_type
+            }
+        }
+
+        impl std::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+                f.debug_struct(stringify!($struct_name))
+                    .field("state", &"<monitor>")
+                    .finish()
             }
         }
     };
@@ -348,6 +380,8 @@ metric_struct!(
 );
 
 /// A Prometheus collector for a tokio runtime.
+#[must_use]
+#[derive(Debug)]
 pub struct RuntimeCollector {
     workers_count: WorkersCount,
     park_count: ParkCount,
@@ -409,27 +443,6 @@ impl RuntimeCollector {
 #[cfg(test)]
 mod test {
     use std::time::Duration;
-
-    // We can't know what values many of these metrics will take, but assert what we can.
-    fn assert_approx_output(actual: &str, expected: &str) {
-        let lines = actual.lines().zip(expected.lines());
-        for (actual, expected) in lines {
-            if !actual.starts_with('#')
-                && (actual.contains("_ratio") || actual.contains("_seconds"))
-            {
-                let (actual_series, actual_value) = actual.split_once(' ').unwrap();
-                let (expected_series, _) = expected.split_once(' ').unwrap();
-                // The series name should be identical.
-                assert_eq!(actual_series, expected_series);
-                // The value will almost certainly be different, but it should always
-                // be a non-zero float if we're measuring things correctly.
-                assert_ne!(actual_value.trim().parse::<f64>().unwrap(), 0f64);
-            } else {
-                // The encoded line should be exactly what we expect.
-                assert_eq!(actual, expected);
-            }
-        }
-    }
 
     #[tokio::test]
     async fn output_approx_eq() {
@@ -505,6 +518,6 @@ mean_polls_per_park 0.0
 # TYPE busy_ratio gauge
 busy_ratio 0.002416951543231039
 # EOF"#;
-        assert_approx_output(&String::from_utf8(buffer).unwrap(), expected);
+        crate::assert_approx_output(&String::from_utf8(buffer).unwrap(), expected);
     }
 }

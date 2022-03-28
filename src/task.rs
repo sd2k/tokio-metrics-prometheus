@@ -87,6 +87,15 @@ macro_rules! metric_struct {
                 $metric_type
             }
         }
+
+        impl std::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+                f.debug_struct(stringify!($struct_name))
+                    .field("state", &"<monitor>")
+                    .field("monitor_name", &self.monitor_name)
+                    .finish()
+            }
+        }
     };
     ( $struct_name:ident, $metric_name:ident, $description:expr, $metric_type:expr$(,)? ) => {
         struct $struct_name {
@@ -126,6 +135,15 @@ macro_rules! metric_struct {
                 $metric_type
             }
         }
+
+        impl std::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+                f.debug_struct(stringify!($struct_name))
+                    .field("state", &"<monitor>")
+                    .field("monitor_name", &self.monitor_name)
+                    .finish()
+            }
+        }
     };
     ( $struct_name:ident, $metric_name:ident, $description:expr, $metric_type:expr, $extract:expr$(,)?) => {
         struct $struct_name {
@@ -163,6 +181,15 @@ macro_rules! metric_struct {
 
             fn metric_type(&self) -> MetricType {
                 $metric_type
+            }
+        }
+
+        impl std::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+                f.debug_struct(stringify!($struct_name))
+                    .field("state", &"<monitor>")
+                    .field("monitor_name", &self.monitor_name)
+                    .finish()
             }
         }
     };
@@ -223,6 +250,15 @@ macro_rules! metric_struct {
 
             fn metric_type(&self) -> MetricType {
                 $metric_type
+            }
+        }
+
+        impl std::fmt::Debug for $struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+                f.debug_struct(stringify!($struct_name))
+                    .field("state", &"<monitor>")
+                    .field("monitor_name", &self.monitor_name)
+                    .finish()
             }
         }
     };
@@ -382,6 +418,8 @@ metric_struct!(
 );
 
 /// A Prometheus collector for a tokio task.
+#[derive(Debug)]
+#[must_use]
 pub struct TaskCollector {
     // Raw metrics.
     instrumented_count: InstrumentedCount,
