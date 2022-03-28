@@ -1,4 +1,7 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    borrow::Cow,
+    sync::{Arc, RwLock},
+};
 
 use prometheus_client::{
     encoding::text::{EncodeMetric, Encoder},
@@ -28,7 +31,8 @@ impl CachedMonitor {
     }
 }
 
-static TASK_NAME: &str = "task_name";
+/// The name of the label used to identify a monitor.
+pub static MONITOR: &str = "monitor";
 
 /// This macro creates a struct representing one of the
 /// `tokio_metrics::TaskMetrics` metrics.
@@ -48,12 +52,15 @@ macro_rules! metric_struct {
     ( $struct_name:ident, $metric_name:ident, $description:expr, $metric_type:expr, first ) => {
         struct $struct_name {
             state: Arc<RwLock<CachedMonitor>>,
-            task_name: String,
+            monitor_name: Cow<'static, str>,
         }
 
         impl $struct_name {
-            fn new(state: Arc<RwLock<CachedMonitor>>, task_name: String) -> Self {
-                Self { state, task_name }
+            fn new(state: Arc<RwLock<CachedMonitor>>, monitor_name: Cow<'static, str>) -> Self {
+                Self {
+                    state,
+                    monitor_name,
+                }
             }
 
             fn name(&self) -> &'static str {
@@ -69,7 +76,7 @@ macro_rules! metric_struct {
             fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
                 self.state.write().unwrap().refresh();
                 encoder
-                    .with_label_set(&(TASK_NAME, self.task_name.as_str()))
+                    .with_label_set(&(MONITOR, self.monitor_name.as_ref()))
                     .no_suffix()?
                     .no_bucket()?
                     .encode_value(self.state.read().unwrap().get().$metric_name as u64)?
@@ -84,12 +91,15 @@ macro_rules! metric_struct {
     ( $struct_name:ident, $metric_name:ident, $description:expr, $metric_type:expr$(,)? ) => {
         struct $struct_name {
             state: Arc<RwLock<CachedMonitor>>,
-            task_name: String,
+            monitor_name: Cow<'static, str>,
         }
 
         impl $struct_name {
-            fn new(state: Arc<RwLock<CachedMonitor>>, task_name: String) -> Self {
-                Self { state, task_name }
+            fn new(state: Arc<RwLock<CachedMonitor>>, monitor_name: Cow<'static, str>) -> Self {
+                Self {
+                    state,
+                    monitor_name,
+                }
             }
 
             fn name(&self) -> &'static str {
@@ -105,7 +115,7 @@ macro_rules! metric_struct {
             fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
                 let metrics = self.state.read().unwrap();
                 encoder
-                    .with_label_set(&(TASK_NAME, self.task_name.as_str()))
+                    .with_label_set(&(MONITOR, self.monitor_name.as_ref()))
                     .no_suffix()?
                     .no_bucket()?
                     .encode_value(metrics.get().$metric_name as u64)?
@@ -120,12 +130,15 @@ macro_rules! metric_struct {
     ( $struct_name:ident, $metric_name:ident, $description:expr, $metric_type:expr, $extract:expr$(,)?) => {
         struct $struct_name {
             state: Arc<RwLock<CachedMonitor>>,
-            task_name: String,
+            monitor_name: Cow<'static, str>,
         }
 
         impl $struct_name {
-            fn new(state: Arc<RwLock<CachedMonitor>>, task_name: String) -> Self {
-                Self { state, task_name }
+            fn new(state: Arc<RwLock<CachedMonitor>>, monitor_name: Cow<'static, str>) -> Self {
+                Self {
+                    state,
+                    monitor_name,
+                }
             }
 
             fn name(&self) -> &'static str {
@@ -141,7 +154,7 @@ macro_rules! metric_struct {
             fn encode(&self, mut encoder: Encoder) -> Result<(), std::io::Error> {
                 let metrics = self.state.read().unwrap();
                 encoder
-                    .with_label_set(&(TASK_NAME, self.task_name.as_str()))
+                    .with_label_set(&(MONITOR, self.monitor_name.as_ref()))
                     .no_suffix()?
                     .no_bucket()?
                     .encode_value($extract(metrics.get()))?
@@ -156,12 +169,15 @@ macro_rules! metric_struct {
     ( $struct_name:ident, $metric_name:ident, $description:expr, $metric_type:expr, $extract_min:expr, $extract_max:expr, $extract_total:expr$(,)?) => {
         struct $struct_name {
             state: Arc<RwLock<CachedMonitor>>,
-            task_name: String,
+            monitor_name: Cow<'static, str>,
         }
 
         impl $struct_name {
-            fn new(state: Arc<RwLock<CachedMonitor>>, task_name: String) -> Self {
-                Self { state, task_name }
+            fn new(state: Arc<RwLock<CachedMonitor>>, monitor_name: Cow<'static, str>) -> Self {
+                Self {
+                    state,
+                    monitor_name,
+                }
             }
 
             fn name(&self) -> &'static str {
@@ -180,13 +196,13 @@ macro_rules! metric_struct {
                     .with_label_set(&MinMaxTotalLabels {
                         measurement: Measurement::min,
                     })
-                    .with_label_set(&(TASK_NAME, self.task_name.as_str()))
+                    .with_label_set(&(MONITOR, self.monitor_name.as_ref()))
                     .no_suffix()?
                     .no_bucket()?
                     .encode_value($extract_min(metrics.get()))?
                     .no_exemplar()?;
                 encoder
-                    .with_label_set(&(TASK_NAME, self.task_name.as_str()))
+                    .with_label_set(&(MONITOR, self.monitor_name.as_ref()))
                     .with_label_set(&MinMaxTotalLabels {
                         measurement: Measurement::max,
                     })
@@ -195,7 +211,7 @@ macro_rules! metric_struct {
                     .encode_value($extract_max(metrics.get()))?
                     .no_exemplar()?;
                 encoder
-                    .with_label_set(&(TASK_NAME, self.task_name.as_str()))
+                    .with_label_set(&(MONITOR, self.monitor_name.as_ref()))
                     .with_label_set(&MinMaxTotalLabels {
                         measurement: Measurement::total,
                     })
@@ -396,7 +412,7 @@ pub struct TaskCollector {
 impl TaskCollector {
     /// Create a new `TaskCollector ` to gather metrics for the given `TaskMonitor`.
     pub fn new(name: &str, monitor: TaskMonitor) -> Self {
-        let name = name.to_string();
+        let name: Cow<str> = name.to_string().into();
         let cached = Arc::new(RwLock::new(CachedMonitor::new(monitor)));
         Self {
             instrumented_count: InstrumentedCount::new(Arc::clone(&cached), name.clone()),
