@@ -506,3 +506,97 @@ impl TaskCollector {
         register!(registry, self.mean_slow_poll_duration);
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn output_approx_eq() {
+        let monitor = tokio_metrics::TaskMonitor::new();
+        let mut registry = prometheus_client::registry::Registry::default();
+
+        crate::TaskCollector::new("my_monitor", monitor.clone()).register(&mut registry);
+
+        tokio::spawn(monitor.instrument(async {
+            for i in 0..25 {
+                tokio::task::yield_now().await;
+                if i % 5 == 0 {
+                    std::thread::sleep(Duration::from_millis(10));
+                } else {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            }
+        }))
+        .await
+        .unwrap();
+
+        let mut buffer = vec![];
+        prometheus_client::encoding::text::encode(&mut buffer, &registry).unwrap();
+        let expected = r#"# HELP instrumented_count The number of tasks instrumented.
+# TYPE instrumented_count counter
+instrumented_count{monitor="my_monitor"} 1
+# HELP dropped_count The number of tasks dropped.
+# TYPE dropped_count counter
+dropped_count{monitor="my_monitor"} 1
+# HELP first_poll_count The number of tasks polled for the first time.
+# TYPE first_poll_count counter
+first_poll_count{monitor="my_monitor"} 1
+# HELP first_poll_delay_seconds The total duration elapsed between the instant tasks are instrumented, and the instant they are first polled.
+# TYPE first_poll_delay_seconds counter
+first_poll_delay_seconds{monitor="my_monitor"} 0.000007
+# HELP idled_count The total number of times that tasks idled, waiting to be awoken.
+# TYPE idled_count counter
+idled_count{monitor="my_monitor"} 20
+# HELP idle_duration_seconds The total duration that tasks idled.
+# TYPE idle_duration_seconds counter
+idle_duration_seconds{monitor="my_monitor"} 0.296472543
+# HELP scheduled_count The total number of times that tasks were awoken (and then, presumably, scheduled for execution).
+# TYPE scheduled_count counter
+scheduled_count{monitor="my_monitor"} 45
+# HELP scheduled_duration_seconds The total duration that tasks spent waiting to be polled after awakening.
+# TYPE scheduled_duration_seconds counter
+scheduled_duration_seconds{monitor="my_monitor"} 0.000163977
+# HELP poll_count The total number of times that tasks were polled.
+# TYPE poll_count counter
+poll_count{monitor="my_monitor"} 46
+# HELP poll_duration_seconds The total duration elapsed during polls.
+# TYPE poll_duration_seconds counter
+poll_duration_seconds{monitor="my_monitor"} 0.000160446
+# HELP fast_poll_count The total number of times that polling tasks completed swiftly.
+# TYPE fast_poll_count counter
+fast_poll_count{monitor="my_monitor"} 41
+# HELP fast_poll_duration_seconds The total duration of fast polls.
+# TYPE fast_poll_duration_seconds counter
+fast_poll_duration_seconds{monitor="my_monitor"} 0.000160446
+# HELP slow_poll_count The total number of times that polling tasks completed slowly.
+# TYPE slow_poll_count counter
+slow_poll_count{monitor="my_monitor"} 5
+# HELP slow_poll_duration_seconds The total duration of slow polls.
+# TYPE slow_poll_duration_seconds counter
+slow_poll_duration_seconds{monitor="my_monitor"} 0.060772541
+# HELP mean_first_poll_delay_seconds The mean duration elapsed between the instant tasks are instrumented, and the instant they are first polled.
+# TYPE mean_first_poll_delay_seconds gauge
+mean_first_poll_delay_seconds{monitor="my_monitor"} 0.000007
+# HELP mean_idle_duration_seconds The mean duration of idles.
+# TYPE mean_idle_duration_seconds gauge
+mean_idle_duration_seconds{monitor="my_monitor"} 0.011858901
+# HELP mean_scheduled_duration_seconds The mean duration that tasks spent waiting to be executed after awakening.
+# TYPE mean_scheduled_duration_seconds gauge
+mean_scheduled_duration_seconds{monitor="my_monitor"} 0.000003279
+# HELP mean_poll_duration_seconds The mean duration of polls.
+# TYPE mean_poll_duration_seconds gauge
+mean_poll_duration_seconds{monitor="my_monitor"} 0.000003146
+# HELP slow_poll_ratio The ratio between the number of polls categorized as slow or fast.
+# TYPE slow_poll_ratio gauge
+slow_poll_ratio{monitor="my_monitor"} 0.10869565217391304
+# HELP mean_fast_poll_duration_seconds The mean duration of fast_polls.
+# TYPE mean_fast_poll_duration_seconds gauge
+mean_fast_poll_duration_seconds{monitor="my_monitor"} 0.000003146
+# HELP mean_slow_poll_duration_seconds The mean duration of slow_polls.
+# TYPE mean_slow_poll_duration_seconds gauge
+mean_slow_poll_duration_seconds{monitor="my_monitor"} 0.012232616
+# EOF"#;
+        crate::assert_approx_output(&String::from_utf8(buffer).unwrap(), expected);
+    }
+}
